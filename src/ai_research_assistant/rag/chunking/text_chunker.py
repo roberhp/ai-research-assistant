@@ -3,7 +3,7 @@ from ai_research_assistant.rag.document import Document
 
 
 class TextChunker:
-    def __init__(self, chunk_size: int, overlap: int):
+    def __init__(self, chunk_size: int = 500, overlap: int =50):
         if overlap >= chunk_size:
             raise ValueError("Overlap must be smaller than chunk size.")
 

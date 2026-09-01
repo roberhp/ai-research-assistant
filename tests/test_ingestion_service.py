@@ -28,7 +28,7 @@ def test_ingestion_persists_document_and_chunks(db_session):
         source="test.txt",
     )
 
-    result = ingestion_service.ingest(document)
+    result, chunk_count = ingestion_service.ingest(document)
 
     assert result.id is not None
     assert result.source == "test.txt"

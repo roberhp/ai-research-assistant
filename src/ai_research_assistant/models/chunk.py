@@ -3,7 +3,7 @@ from datetime import datetime, UTC
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Integer, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ai_research_assistant.database import Base
 
@@ -40,4 +40,8 @@ class ChunkModel(Base):
         DateTime,
         default=lambda: datetime.now(UTC),
         nullable=False,
+    )
+
+    document: Mapped["DocumentModel"] = relationship(
+        back_populates="chunks"
     )

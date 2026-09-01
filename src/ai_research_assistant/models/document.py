@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, UTC
 
 from sqlalchemy import DateTime, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ai_research_assistant.database import Base
 
@@ -24,4 +24,8 @@ class DocumentModel(Base):
         DateTime,
         default=lambda: datetime.now(UTC),
         nullable=False,
+    )
+
+    chunks: Mapped[list["ChunkModel"]] = relationship(
+        back_populates="document"
     )

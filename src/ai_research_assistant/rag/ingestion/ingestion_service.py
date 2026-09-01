@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session
 
-from ai_research_assistant.rag.chunk import Chunk
 from ai_research_assistant.rag.document import Document
 from ai_research_assistant.rag.chunking.text_chunker import TextChunker
 from ai_research_assistant.rag.embeddings.embedding_service import EmbeddingService
 from ai_research_assistant.rag.ingestion.embedded_chunk import EmbeddedChunk
 from ai_research_assistant.repositories.chunk_repository import ChunkRepository
 from ai_research_assistant.repositories.document_repository import DocumentRepository
+
 
 class IngestionService:
     def __init__(
@@ -49,7 +49,7 @@ class IngestionService:
 
             self.session.commit()
 
-            return document_model
+            return document_model, len(embedded_chunks)
 
         except Exception:
             self.session.rollback()

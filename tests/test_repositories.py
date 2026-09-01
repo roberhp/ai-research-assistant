@@ -74,7 +74,7 @@ def test_embedding_is_persisted_as_vector(db_session):
         document_id=document.id,
         chunks=[
             EmbeddedChunk(
-                content ="Vector test",
+                content="Vector test",
                 chunk_index=0,
                 embedding=[0.5] * 3072,
             ),
@@ -89,3 +89,45 @@ def test_embedding_is_persisted_as_vector(db_session):
 
     assert chunk is not None
     assert len(chunk.embedding) == 3072
+
+
+def test_similarity_search_returns_most_similar_chunks(db_session):
+    document_repository = DocumentRepository(db_session)
+    chunk_repository = ChunkRepository(db_session)
+
+    document = document_repository.create(
+        "similarity-test.txt"
+    )
+
+    chunk_repository.create_many(
+        document_id=document.id,
+        chunks=[
+            EmbeddedChunk(
+                content="This is very similar.",
+                chunk_index=0,
+                embedding=[1.0] + [0.0] * 3071,
+            ),
+            EmbeddedChunk(
+                content="This is somewhat similar.",
+                chunk_index=1,
+                embedding=[0.0, 1.0] + [0.0] * 3070,
+            ),
+            EmbeddedChunk(
+                content="This is different.",
+                chunk_index=2,
+                embedding=[-1.0] + [0.0] * 3071,
+            ),
+        ],
+    )
+
+    results = chunk_repository.similarity_search(
+        query_embedding=[1.0] + [0.0] * 3071,
+        limit=2,
+    )
+
+    assert len(results) == 2
+
+    chunk, distance = results[0]
+
+    assert chunk.content == "This is very similar."
+    assert distance < 0.01

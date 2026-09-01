@@ -3,12 +3,18 @@ from fastapi import Depends, FastAPI
 from ai_research_assistant.dependencies import get_chat_service
 from ai_research_assistant.schemas.chat import ChatRequest, ChatResponse
 from ai_research_assistant.services.chat_service import ChatService
+from ai_research_assistant.api.search import router as search_router
+from ai_research_assistant.api.documents import router as documents_router
+from ai_research_assistant.api.rag import router as rag_router
 
 app = FastAPI(
     title="AI Research Assistant",
     description="AI-powered research and knowledge assistant.",
     version="0.1.0",
 )
+app.include_router(search_router)
+app.include_router(documents_router)
+app.include_router(rag_router)
 
 @app.get("/")
 def root():

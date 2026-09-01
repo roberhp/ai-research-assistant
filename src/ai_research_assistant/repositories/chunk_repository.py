@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from ai_research_assistant.models.chunk import ChunkModel
 from ai_research_assistant.rag.ingestion.embedded_chunk import EmbeddedChunk
+from sqlalchemy import select
 
 class ChunkRepository:
     def __init__(self, session: Session):
@@ -28,3 +29,20 @@ class ChunkRepository:
         self.session.flush()
 
         return chunk_models
+    
+    def similarity_search(
+        self,
+        query_embedding: list[float],
+        limit: int = 5,
+    ):
+        distance = ChunkModel.embedding.cosine_distance(
+            query_embedding
+        ).label("distance")
+
+        statement = (
+            select(ChunkModel, distance)
+            .order_by(distance)
+            .limit(limit)
+        )
+
+        return self.session.execute(statement).all()

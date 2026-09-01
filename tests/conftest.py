@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from ai_research_assistant.database import Base
+
 
 load_dotenv()
 
@@ -14,6 +16,10 @@ def db_session():
     database_url = os.environ["DATABASE_TEST_URL"]
 
     engine = create_engine(database_url)
+
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+
     session = Session(engine)
 
     try:
@@ -21,4 +27,7 @@ def db_session():
     finally:
         session.rollback()
         session.close()
+
+        Base.metadata.drop_all(engine)
+
         engine.dispose()
