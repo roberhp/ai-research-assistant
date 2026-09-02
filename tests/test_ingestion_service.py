@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from ai_research_assistant.rag.document import Document
 from ai_research_assistant.rag.ingestion.embedded_chunk import EmbeddedChunk
 from ai_research_assistant.rag.ingestion.ingestion_service import IngestionService
-
+import pytest
 
 class FakeChunker:
     def chunk(self, document: Document):
@@ -66,6 +66,14 @@ class FakeSession:
     def rollback(self):
         self.rollback_calls += 1
 
+class FailingChunkRepository:
+    def create_many(
+        self,
+        document_id,
+        chunks: list[EmbeddedChunk],
+    ):
+        raise RuntimeError("Database error")
+    
 
 def create_service(
     session,
@@ -145,3 +153,28 @@ def test_ingestion_skips_existing_document():
     assert len(chunk_repository.created_chunks) == 0
     assert embedding_service.calls == 0
     assert session.commit_calls == 0
+
+def test_ingestion_rolls_back_when_persistence_fails():
+    session = FakeSession()
+    chunker = FakeChunker()
+    embedding_service = FakeEmbeddingService()
+    document_repository = FakeDocumentRepository()
+    chunk_repository = FailingChunkRepository()
+
+    service = create_service(
+        session=session,
+        chunker=chunker,
+        embedding_service=embedding_service,
+        document_repository=document_repository,
+        chunk_repository=chunk_repository,
+    )
+
+    document = Document(
+        source="failure.txt",
+        content="This ingestion should fail.",
+    )
+
+    with pytest.raises(RuntimeError, match="Database error"):
+        service.ingest(document)
+
+    assert session.rollback_calls == 1

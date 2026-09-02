@@ -8,7 +8,9 @@ from ai_research_assistant.models.chunk import ChunkModel
 from ai_research_assistant.repositories.chunk_repository import ChunkRepository
 from ai_research_assistant.repositories.document_repository import DocumentRepository
 from ai_research_assistant.rag.ingestion.embedded_chunk import EmbeddedChunk
-
+from ai_research_assistant.repositories.document_repository import (
+    DocumentRepository,
+)
 
 def test_create_document(db_session):
     repository = DocumentRepository(db_session)
@@ -131,3 +133,12 @@ def test_similarity_search_returns_most_similar_chunks(db_session):
 
     assert chunk.content == "This is very similar."
     assert distance < 0.01
+
+def test_find_document_by_source_returns_none_when_not_found(db_session):
+    repository = DocumentRepository(db_session)
+
+    result = repository.find_by_source(
+        "does-not-exist.txt"
+    )
+
+    assert result is None
