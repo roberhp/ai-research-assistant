@@ -1,5 +1,6 @@
 from ai_research_assistant.llm.provider import LLMProvider
 from ai_research_assistant.rag.generation.context_builder import ContextBuilder
+from ai_research_assistant.rag.generation.rag_answer import RagAnswer
 from ai_research_assistant.rag.retrieval.retrieval_service import RetrievalService
 
 
@@ -14,11 +15,17 @@ class RagService:
         self.llm_provider = llm_provider
         self.context_builder = context_builder
 
-    def answer(self, query: str, limit: int = 5) -> str:
+    def answer(self, query: str, limit: int = 5) -> RagAnswer:
         results = self.retrieval_service.retrieve(
             query=query,
             limit=limit,
         )
+
+        if not results:
+            return RagAnswer(
+                answer="I don't have enough information to answer this question.",
+                sources=[],
+            )
 
         context = self.context_builder.build(results)
 
@@ -27,20 +34,32 @@ class RagService:
             context=context,
         )
 
-        return self.llm_provider.generate(prompt)
+        answer = self.llm_provider.generate(prompt)
+
+        return RagAnswer(
+            answer=answer,
+            sources=results,
+        )
 
     def _build_prompt(self, query: str, context: str) -> str:
         return f"""
-            You are a research assistant.
+You are a research assistant.
 
-            Answer the user's question using only the provided context.
+Answer the user's question using only the provided context.
 
-            If the context does not contain enough information to answer the question,
-            say that you don't have enough information.
+When an answer is supported by information from the context,
+cite the corresponding source using its identifier, such as [Source 1]
+or [Source 2].
 
-            Context:
-            {context}
+Use only source identifiers that exist in the provided context.
+Do not invent source identifiers.
 
-            Question:
-            {query}
-            """.strip()
+If the context does not contain enough information to answer the question,
+say that you don't have enough information.
+
+Context:
+{context}
+
+Question:
+{query}
+""".strip()

@@ -5,6 +5,10 @@ from ai_research_assistant.dependencies import get_retrieval_service
 from ai_research_assistant.rag.retrieval.retrieval_result import RetrievalResult
 from ai_research_assistant.dependencies import get_ingestion_service
 from ai_research_assistant.dependencies import get_rag_service
+from ai_research_assistant.rag.generation.rag_answer import RagAnswer
+from ai_research_assistant.rag.retrieval.retrieval_result import RetrievalResult
+
+
 
 
 client = TestClient(app)
@@ -35,7 +39,17 @@ class FakeIngestionService:
 
 class FakeRagService:
     def answer(self, query: str, limit: int):
-        return "This answer was generated using retrieved context."
+        return RagAnswer(
+            answer="RAG retrieves relevant information before generating an answer.",
+            sources=[
+                RetrievalResult(
+                    content="RAG combines retrieval and generation.",
+                    source="rag.txt",
+                    chunk_index=0,
+                    score=0.95,
+                )
+            ],
+        )
 
 def test_root():
     response = client.get("/")
@@ -161,9 +175,13 @@ def test_chat_endpoint_uses_rag_service():
 
         data = response.json()
 
-        assert data["answer"] == (
-            "This answer was generated using retrieved context."
-        )
+        assert response.json()["sources"] == [
+            {
+                "source": "rag.txt",
+                "chunk_index": 0,
+                "score": 0.95,
+            }
+        ]
 
     finally:
         app.dependency_overrides.clear()

@@ -22,7 +22,12 @@ def test_context_builder_formats_results():
 
     context = builder.build(results)
 
-    assert "[Source: rag.txt, Chunk: 0]" in context
+    assert "[Source 1]" in context
+    assert "Document: rag.txt" in context
+    assert "Chunk: 0" in context
     assert "RAG combines retrieval and generation." in context
-    assert "[Source: embeddings.txt, Chunk: 2]" in context
+
+    assert "[Source 2]" in context
+    assert "Document: embeddings.txt" in context
+    assert "Chunk: 2" in context
     assert "Embeddings represent text as vectors." in context

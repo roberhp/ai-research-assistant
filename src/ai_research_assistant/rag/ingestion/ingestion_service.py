@@ -25,6 +25,13 @@ class IngestionService:
 
     def ingest(self, document: Document):
         try:
+            existing_document = self.document_repository.find_by_source(
+                document.source
+            )
+
+            if existing_document:
+                return existing_document, 0
+
             document_model = self.document_repository.create(
                 source=document.source,
             )

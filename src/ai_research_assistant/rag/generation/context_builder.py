@@ -5,9 +5,10 @@ class ContextBuilder:
     def build(self, results: list[RetrievalResult]) -> str:
         return "\n\n".join(
             (
-                f"[Source: {result.source}, "
-                f"Chunk: {result.chunk_index}]\n"
+                f"[Source {index}]\n"
+                f"Document: {result.source}\n"
+                f"Chunk: {result.chunk_index}\n\n"
                 f"{result.content}"
             )
-            for result in results
+            for index, result in enumerate(results, start=1)
         )

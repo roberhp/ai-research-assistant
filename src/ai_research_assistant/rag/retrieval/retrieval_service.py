@@ -8,9 +8,11 @@ class RetrievalService:
         self,
         embedding_service: EmbeddingService,
         chunk_repository: ChunkRepository,
+        similarity_threshold: float = 0.70,
     ):
         self.embedding_service = embedding_service
         self.chunk_repository = chunk_repository
+        self.similarity_threshold = similarity_threshold
 
     def retrieve(
         self,
@@ -24,12 +26,19 @@ class RetrievalService:
             limit=limit,
         )
 
-        return [
-            RetrievalResult(
-                content=chunk.content,
-                source=chunk.document.source,
-                chunk_index=chunk.chunk_index,
-                score=1 - distance,
-            )
-            for chunk, distance in results
-        ]
+        retrieval_results = []
+
+        for chunk, distance in results:
+            score = 1 - distance
+
+            if score >= self.similarity_threshold:
+                retrieval_results.append(
+                    RetrievalResult(
+                        content=chunk.content,
+                        source=chunk.document.source,
+                        chunk_index=chunk.chunk_index,
+                        score=score,
+                    )
+                )
+
+        return retrieval_results
