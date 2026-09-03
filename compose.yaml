@@ -1,4 +1,23 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-research-assistant-app
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://ai_research:ai_research@postgres:5432/ai_research
+      DATABASE_TEST_URL: postgresql+psycopg://ai_research:ai_research@postgres:5432/ai_research_test
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: ai-research-postgres
@@ -10,7 +29,16 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ai_research -d ai_research"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:8-alpine
@@ -19,6 +47,16 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "ping"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
