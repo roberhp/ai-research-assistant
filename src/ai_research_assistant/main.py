@@ -7,14 +7,32 @@ from ai_research_assistant.api.search import router as search_router
 from ai_research_assistant.api.documents import router as documents_router
 from ai_research_assistant.api.rag import router as rag_router
 
+from ai_research_assistant.observability.logging import (
+    configure_logging,
+)
+from ai_research_assistant.observability.middleware import (
+    request_logging_middleware,
+)
+
+configure_logging()
+
 app = FastAPI(
     title="AI Research Assistant",
     description="AI-powered research and knowledge assistant.",
     version="0.1.0",
 )
+
+
+app.middleware("http")(request_logging_middleware)
+
 app.include_router(search_router)
 app.include_router(documents_router)
 app.include_router(rag_router)
+
+@app.get("/health")
+
+def health():
+    return {"status": "ok"}
 
 @app.get("/")
 def root():
