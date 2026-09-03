@@ -6,6 +6,7 @@ from ai_research_assistant.services.chat_service import ChatService
 from ai_research_assistant.api.search import router as search_router
 from ai_research_assistant.api.documents import router as documents_router
 from ai_research_assistant.api.rag import router as rag_router
+from ai_research_assistant.api.health import router as health_router
 
 from ai_research_assistant.observability.logging import (
     configure_logging,
@@ -28,9 +29,9 @@ app.middleware("http")(request_logging_middleware)
 app.include_router(search_router)
 app.include_router(documents_router)
 app.include_router(rag_router)
+app.include_router(health_router)
 
 @app.get("/health")
-
 def health():
     return {"status": "ok"}
 

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -6,51 +8,91 @@ from ai_research_assistant.observability.middleware import (
 )
 
 
-def create_test_app():
+def create_test_app() -> FastAPI:
     app = FastAPI()
-
-    app.middleware("http")(
-        request_logging_middleware
-    )
+    app.middleware("http")(request_logging_middleware)
 
     @app.get("/test")
     def test_endpoint():
         return {"status": "ok"}
 
+    @app.get("/error")
+    def error_endpoint():
+        raise RuntimeError("test error")
+
     return app
 
 
-def test_middleware_generates_request_id():
-    app = create_test_app()
+def test_request_id_is_preserved():
+    client = TestClient(create_test_app())
 
-    client = TestClient(app)
+    response = client.get(
+        "/test",
+        headers={"X-Request-ID": "test-request-id"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "test-request-id"
+
+
+def test_request_id_is_generated():
+    client = TestClient(create_test_app())
 
     response = client.get("/test")
 
     assert response.status_code == 200
 
-    request_id = response.headers.get(
-        "X-Request-ID"
-    )
+    request_id = response.headers["X-Request-ID"]
 
-    assert request_id is not None
+    assert request_id
     assert len(request_id) > 0
 
 
-def test_middleware_preserves_existing_request_id():
-    app = create_test_app()
+def test_request_id_is_included_in_logs(caplog):
+    client = TestClient(create_test_app())
 
-    client = TestClient(app)
-
-    response = client.get(
-        "/test",
-        headers={
-            "X-Request-ID": "test-request-id"
-        },
-    )
+    with caplog.at_level(
+        logging.INFO,
+        logger="ai_research_assistant.http",
+    ):
+        response = client.get(
+            "/test",
+            headers={"X-Request-ID": "test-request-id"},
+        )
 
     assert response.status_code == 200
 
-    assert response.headers[
-        "X-Request-ID"
-    ] == "test-request-id"
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "ai_research_assistant.http"
+    ]
+
+    assert records
+    assert records[-1].request_id == "test-request-id"
+
+
+def test_failed_request_is_logged(caplog):
+    client = TestClient(create_test_app())
+
+    with caplog.at_level(
+        logging.ERROR,
+        logger="ai_research_assistant.http",
+    ):
+        try:
+            client.get(
+                "/error",
+                headers={"X-Request-ID": "test-request-id"},
+            )
+        except RuntimeError:
+            pass
+
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "ai_research_assistant.http"
+    ]
+
+    assert records
+    assert records[-1].request_id == "test-request-id"
+    assert records[-1].message.startswith("request_failed")

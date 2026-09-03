@@ -185,3 +185,11 @@ def test_chat_endpoint_uses_rag_service():
 
     finally:
         app.dependency_overrides.clear()
+
+def test_liveness():
+    response = client.get("/health/live")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+    }
