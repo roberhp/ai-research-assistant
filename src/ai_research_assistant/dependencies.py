@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 from ai_research_assistant.database import SessionLocal
 from ai_research_assistant.llm.gemini_provider import GeminiProvider
 from ai_research_assistant.rag.chunking.text_chunker import TextChunker
+from ai_research_assistant.rag.embeddings.embedding_cache import EmbeddingCache
 from ai_research_assistant.rag.embeddings.embedding_service import EmbeddingService
+from ai_research_assistant.rag.embeddings.redis_embedding_cache import (
+    RedisEmbeddingCache,
+)
 from ai_research_assistant.rag.generation.context_builder import ContextBuilder
 from ai_research_assistant.rag.generation.rag_service import RagService
 from ai_research_assistant.rag.ingestion.ingestion_service import IngestionService
@@ -37,9 +41,23 @@ def get_db() -> Generator:
         db.close()
 
 
-def get_embedding_service() -> EmbeddingService:
+def get_embedding_cache() -> EmbeddingCache:
     settings = get_settings()
-    return EmbeddingService(settings)
+
+    return RedisEmbeddingCache(
+        redis_url=settings.redis_url,
+    )
+
+
+def get_embedding_service(
+    cache: EmbeddingCache = Depends(get_embedding_cache),
+) -> EmbeddingService:
+    settings = get_settings()
+
+    return EmbeddingService(
+        settings=settings,
+        cache=cache,
+    )
 
 
 def get_retrieval_service(
@@ -67,6 +85,7 @@ def get_ingestion_service(
 
 def get_llm_provider() -> GeminiProvider:
     settings = get_settings()
+
     return GeminiProvider(settings)
 
 
