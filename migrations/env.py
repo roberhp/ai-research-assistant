@@ -9,12 +9,12 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 
 from ai_research_assistant.database import Base
 from ai_research_assistant.models import ChunkModel, DocumentModel
-from ai_research_assistant.settings import Settings
+from ai_research_assistant.settings import DatabaseSettings
 
 
 config = context.config
 
-settings = Settings()
+settings = DatabaseSettings()
 
 config.set_main_option(
     "sqlalchemy.url",
