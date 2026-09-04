@@ -1,13 +1,6 @@
 from ai_research_assistant.services.chat_service import ChatService
+from tests.fakes.fake_llm_provider import FakeLLMProvider
 
-
-class FakeLLMProvider:
-    def __init__(self):
-        self.last_prompt = None
-
-    def generate(self, prompt: str) -> str:
-        self.last_prompt = prompt
-        return "Fake response"
 
 def test_chat_returns_llm_response():
     provider = FakeLLMProvider()
@@ -15,7 +8,8 @@ def test_chat_returns_llm_response():
 
     response = service.chat("Hello")
 
-    assert response == "Fake response"
+    assert response == "Fake LLM response"
+
 
 def test_chat_sends_message_to_llm_provider():
     provider = FakeLLMProvider()
@@ -23,4 +17,4 @@ def test_chat_sends_message_to_llm_provider():
 
     service.chat("What is RAG?")
 
-    assert provider.last_prompt == "What is RAG?"
+    assert provider.prompts == ["What is RAG?"]
