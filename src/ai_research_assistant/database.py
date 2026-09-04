@@ -1,14 +1,14 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from ai_research_assistant.settings import Settings
+from ai_research_assistant.settings import DatabaseSettings
 
 
 class Base(DeclarativeBase):
     pass
 
 
-settings = Settings()
+settings = DatabaseSettings()
 
 engine = create_engine(
     settings.database_url,
