@@ -147,16 +147,24 @@ def test_create_document_endpoint():
         app.dependency_overrides.clear()
 
 def test_create_document_validates_empty_content():
-    response = client.post(
-        "/api/v1/documents",
-        json={
-            "source": "test.txt",
-            "content": "",
-        },
+    app.dependency_overrides[get_ingestion_service] = (
+        lambda: FakeIngestionService()
     )
 
-    assert response.status_code == 422
+    try:
+        response = client.post(
+            "/api/v1/documents",
+            json={
+                "source": "test.txt",
+                "content": "",
+            },
+        )
 
+        assert response.status_code == 422
+
+    finally:
+        app.dependency_overrides.clear()
+        
 def test_chat_endpoint_uses_rag_service():
     app.dependency_overrides[get_rag_service] = (
         lambda: FakeRagService()
