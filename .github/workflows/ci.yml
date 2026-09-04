@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: ai_research
+          POSTGRES_USER: ai_research
+          POSTGRES_PASSWORD: ai_research
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_research -d ai_research"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+psycopg://ai_research:ai_research@localhost:5432/ai_research
+      DATABASE_TEST_URL: postgresql+psycopg://ai_research:ai_research@localhost:5432/ai_research_test
+      REDIS_URL: redis://localhost:6379/0
+      REDIS_EMBEDDING_TTL: 86400
+      GEMINI_MODEL: gemini-2.5-flash
+      GEMINI_EMBEDDING_MODEL: gemini-embedding-001
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Create test database
+        run: |
+          PGPASSWORD=ai_research psql \
+            -h localhost \
+            -U ai_research \
+            -d ai_research \
+            -c "CREATE DATABASE ai_research_test OWNER ai_research;"
+
+      - name: Enable pgvector in test database
+        run: |
+          PGPASSWORD=ai_research psql \
+            -h localhost \
+            -U ai_research \
+            -d ai_research_test \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Run migrations
+        run: uv run alembic upgrade head
+
+      - name: Run tests
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: uv run pytest --cov=ai_research_assistant
+
+      - name: Build Docker image
+        run: docker build -t ai-research-assistant:ci .
