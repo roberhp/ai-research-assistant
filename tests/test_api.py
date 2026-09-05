@@ -49,6 +49,7 @@ class FakeRagService:
                     score=0.95,
                 )
             ],
+            citations=[],
         )
 
 def test_root():

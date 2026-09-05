@@ -20,6 +20,13 @@ class RagSource(BaseModel):
     score: float
 
 
+class RagCitation(BaseModel):
+    source: str
+    chunk_index: int
+    score: float
+
+
 class RagResponse(BaseModel):
     answer: str
     sources: list[RagSource]
+    citations: list[RagCitation]

@@ -4,7 +4,7 @@ from ai_research_assistant.rag.generation.context_builder import ContextBuilder
 from ai_research_assistant.rag.generation.rag_service import RagService
 from ai_research_assistant.rag.retrieval.retrieval_result import RetrievalResult
 from tests.fakes.fake_llm_provider import FakeLLMProvider
-
+from ai_research_assistant.rag.generation.citation_validator import CitationValidator
 
 def test_rag_service_generates_answer():
     retrieval_service = Mock()
@@ -26,6 +26,7 @@ def test_rag_service_generates_answer():
         retrieval_service=retrieval_service,
         llm_provider=llm_provider,
         context_builder=ContextBuilder(),
+        citation_validator=CitationValidator()
     )
 
     result = service.answer(
@@ -55,6 +56,7 @@ def test_rag_service_returns_fallback_when_no_results():
         retrieval_service=retrieval_service,
         llm_provider=llm_provider,
         context_builder=ContextBuilder(),
+        citation_validator=CitationValidator()
     )
 
     result = service.answer(

@@ -3,20 +3,20 @@ from fastapi import APIRouter, Depends
 from ai_research_assistant.dependencies import get_rag_service
 from ai_research_assistant.rag.generation.rag_service import RagService
 from ai_research_assistant.schemas.rag import (
+    RagCitation,
     RagRequest,
     RagResponse,
     RagSource,
 )
 
-
 router = APIRouter(
-    prefix="/api/v1",
+    prefix="/api/v1/chat",
     tags=["rag"],
 )
 
 
 @router.post(
-    "/chat",
+    "",
     response_model=RagResponse,
 )
 def chat(
@@ -28,16 +28,22 @@ def chat(
         limit=request.limit,
     )
 
-    sources = [
-        RagSource(
-            source=source.source,
-            chunk_index=source.chunk_index,
-            score=source.score,
-        )
-        for source in result.sources
-    ]
-
     return RagResponse(
         answer=result.answer,
-        sources=sources,
+        sources=[
+            RagSource(
+                source=source.source,
+                chunk_index=source.chunk_index,
+                score=source.score,
+            )
+            for source in result.sources
+        ],
+        citations=[
+            RagCitation(
+                source=citation.source,
+                chunk_index=citation.chunk_index,
+                score=citation.score,
+            )
+            for citation in result.citations
+        ],
     )

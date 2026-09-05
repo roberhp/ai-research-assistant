@@ -19,6 +19,7 @@ from ai_research_assistant.repositories.chunk_repository import ChunkRepository
 from ai_research_assistant.repositories.document_repository import DocumentRepository
 from ai_research_assistant.services.chat_service import ChatService
 from ai_research_assistant.settings import Settings
+from ai_research_assistant.rag.generation.citation_validator import CitationValidator
 
 
 def get_settings() -> Settings:
@@ -97,4 +98,5 @@ def get_rag_service(
         retrieval_service=retrieval_service,
         llm_provider=llm_provider,
         context_builder=ContextBuilder(),
+        citation_validator=CitationValidator()
     )
