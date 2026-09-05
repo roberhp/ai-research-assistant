@@ -1,76 +1,77 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-
-from ai_research_assistant.evaluation.dataset import EVALUATION_DATASET
-from ai_research_assistant.evaluation.evaluation_setup import EvaluationSetup
-from ai_research_assistant.evaluation.retrieval_evaluator import (
-    RetrievalEvaluator,
+from ai_research_assistant.evaluation.dataset import EVALUATION_CASES
+from ai_research_assistant.evaluation.evaluation_setup import (
+    create_evaluation_retrieval_service,
 )
-from ai_research_assistant.rag.embeddings.embedding_service import (
-    EmbeddingService,
-)
-from ai_research_assistant.rag.retrieval.retrieval_service import (
-    RetrievalService,
-)
-from ai_research_assistant.repositories.chunk_repository import ChunkRepository
-from ai_research_assistant.settings import Settings
+from ai_research_assistant.evaluation.retrieval_evaluator import RetrievalEvaluator
 
 
-def run(k: int = 3):
-    settings = Settings()
+K_VALUES = [1, 3, 5, 10]
 
-    engine = create_engine(settings.database_url)
+THRESHOLD_VALUES = [
+    0.50,
+    0.60,
+    0.70,
+    0.80,
+    0.85,
+]
 
-    embedding_service = EmbeddingService(settings)
 
-    with Session(engine) as session:
-        setup = EvaluationSetup(
-            session=session,
-            embedding_service=embedding_service,
-        )
+def print_report(
+    k: int,
+    report: dict[str, float],
+) -> None:
+    print(f"\nK={k}")
+    print(f"  Hit@K:        {report['hit_at_k']:.3f}")
+    print(f"  MRR@K:        {report['mrr_at_k']:.3f}")
+    print(f"  Precision@K:  {report['precision_at_k']:.3f}")
+    print(f"  Recall@K:     {report['recall_at_k']:.3f}")
 
-        setup.prepare()
 
-        retrieval_service = RetrievalService(
-            embedding_service=embedding_service,
-            chunk_repository=ChunkRepository(session),
-        )
+def evaluate_k_values() -> None:
+    print("=" * 60)
+    print("RETRIEVAL EVALUATION - K VALUES")
+    print("=" * 60)
 
-        evaluator = RetrievalEvaluator()
+    retrieval_service = create_evaluation_retrieval_service()
+    evaluator = RetrievalEvaluator(retrieval_service)
 
-        retrieval_results = [
-            retrieval_service.retrieve(
-                query=case.query,
-                limit=k,
-            )
-            for case in EVALUATION_DATASET
-        ]
-
-        return evaluator.evaluate(
-            cases=EVALUATION_DATASET,
-            retrieval_results=retrieval_results,
+    for k in K_VALUES:
+        report = evaluator.evaluate(
+            cases=EVALUATION_CASES,
             k=k,
         )
 
+        print_report(k, report)
+
+
+def evaluate_threshold_values() -> None:
+    print("\n" + "=" * 60)
+    print("RETRIEVAL EVALUATION - THRESHOLD VALUES")
+    print("=" * 60)
+
+    for threshold in THRESHOLD_VALUES:
+        retrieval_service = create_evaluation_retrieval_service(
+            similarity_threshold=threshold,
+        )
+
+        evaluator = RetrievalEvaluator(retrieval_service)
+
+        report = evaluator.evaluate(
+            cases=EVALUATION_CASES,
+            k=5,
+        )
+
+        print(f"\nThreshold={threshold:.2f}")
+        print(f"  Hit@5:        {report['hit_at_k']:.3f}")
+        print(f"  MRR@5:        {report['mrr_at_k']:.3f}")
+        print(f"  Precision@5:  {report['precision_at_k']:.3f}")
+        print(f"  Recall@5:     {report['recall_at_k']:.3f}")
+
+
+def main() -> None:
+    evaluate_k_values()
+    evaluate_threshold_values()
+
 
 if __name__ == "__main__":
-    k = 3
-
-    report = run(k=k)
-
-    print()
-    print("RAG Retrieval Evaluation")
-    print("========================")
-    print(f"Total cases: {report.total_cases}")
-    print(f"Hit@{k}:      {report.hit_at_k:.3f}")
-    print(f"MRR@{k}:      {report.mrr_at_k:.3f}")
-
-    print()
-    print("Cases")
-    print("-----")
-
-    for case in report.cases:
-        print(f"Query: {case.query}")
-        print(f"Hit@{k}: {case.hit_at_k:.3f}")
-        print(f"RR:     {case.reciprocal_rank:.3f}")
-        print()
+    main()

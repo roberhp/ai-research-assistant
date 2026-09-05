@@ -1,83 +1,84 @@
 from ai_research_assistant.evaluation.evaluation_case import EvaluationCase
-from ai_research_assistant.evaluation.evaluation_report import (
-    EvaluationCaseReport,
-    EvaluationReport,
-)
-from ai_research_assistant.rag.retrieval.retrieval_result import RetrievalResult
+from ai_research_assistant.rag.retrieval.retrieval_service import RetrievalService
 
 
 class RetrievalEvaluator:
-    def hit_at_k(
-        self,
-        case: EvaluationCase,
-        results: list[RetrievalResult],
-        k: int,
-    ) -> float:
-        retrieved_sources = {
-            result.source
-            for result in results[:k]
-        }
-
-        return float(
-            bool(retrieved_sources & case.expected_sources)
-        )
-
-    def mrr_at_k(
-        self,
-        case: EvaluationCase,
-        results: list[RetrievalResult],
-        k: int,
-    ) -> float:
-        for rank, result in enumerate(results[:k], start=1):
-            if result.source in case.expected_sources:
-                return 1.0 / rank
-
-        return 0.0
+    def __init__(self, retrieval_service: RetrievalService):
+        self.retrieval_service = retrieval_service
 
     def evaluate(
         self,
         cases: list[EvaluationCase],
-        retrieval_results: list[list[RetrievalResult]],
-        k: int,
-    ) -> EvaluationReport:
-        if len(cases) != len(retrieval_results):
-            raise ValueError(
-                "Cases and retrieval results must have the same length."
-            )
-
+        k: int = 5,
+    ) -> dict[str, float]:
         if not cases:
-            return EvaluationReport(
-                hit_at_k=0.0,
-                mrr_at_k=0.0,
-                total_cases=0,
-                cases=[],
-            )
+            return {
+                "hit_at_k": 0.0,
+                "mrr_at_k": 0.0,
+                "precision_at_k": 0.0,
+                "recall_at_k": 0.0,
+            }
 
-        case_reports = [
-            EvaluationCaseReport(
+        hits = []
+        reciprocal_ranks = []
+        precisions = []
+        recalls = []
+
+        for case in cases:
+            results = self.retrieval_service.retrieve(
                 query=case.query,
-                hit_at_k=self.hit_at_k(case, results, k),
-                reciprocal_rank=self.mrr_at_k(case, results, k),
+                limit=k,
             )
-            for case, results in zip(
-                cases,
-                retrieval_results,
+
+            retrieved_sources = [
+                result.source
+                for result in results
+            ]
+
+            expected_sources = case.expected_sources
+
+            unique_retrieved_sources = list(
+                dict.fromkeys(retrieved_sources)
             )
-        ]
 
-        hit_at_k = sum(
-            case_report.hit_at_k
-            for case_report in case_reports
-        ) / len(case_reports)
+            relevant_sources = [
+                source
+                for source in unique_retrieved_sources
+                if source in expected_sources
+            ]
 
-        mrr_at_k = sum(
-            case_report.reciprocal_rank
-            for case_report in case_reports
-        ) / len(case_reports)
+            hit = 1.0 if relevant_sources else 0.0
 
-        return EvaluationReport(
-            hit_at_k=hit_at_k,
-            mrr_at_k=mrr_at_k,
-            total_cases=len(case_reports),
-            cases=case_reports,
-        )
+            reciprocal_rank = 0.0
+
+            for index, source in enumerate(
+                retrieved_sources,
+                start=1,
+            ):
+                if source in expected_sources:
+                    reciprocal_rank = 1.0 / index
+                    break
+
+            precision = (
+                len(relevant_sources) / len(unique_retrieved_sources)
+                if unique_retrieved_sources
+                else 0.0
+            )
+
+            recall = (
+                len(relevant_sources) / len(expected_sources)
+                if expected_sources
+                else 0.0
+            )
+
+            hits.append(hit)
+            reciprocal_ranks.append(reciprocal_rank)
+            precisions.append(precision)
+            recalls.append(recall)
+
+        return {
+            "hit_at_k": sum(hits) / len(hits),
+            "mrr_at_k": sum(reciprocal_ranks) / len(reciprocal_ranks),
+            "precision_at_k": sum(precisions) / len(precisions),
+            "recall_at_k": sum(recalls) / len(recalls),
+        }

@@ -1,261 +1,241 @@
 from ai_research_assistant.evaluation.evaluation_case import EvaluationCase
 from ai_research_assistant.evaluation.retrieval_evaluator import RetrievalEvaluator
 from ai_research_assistant.rag.retrieval.retrieval_result import RetrievalResult
+from tests.fakes.fake_retrieval_service import FakeRetrievalService
 
 
-def test_hit_at_k_returns_one_when_expected_source_is_retrieved():
-    evaluator = RetrievalEvaluator()
-
-    case = EvaluationCase(
-        query="What is RAG?",
-        expected_sources={"rag.txt"},
+def test_evaluator_calculates_hit_mrr_precision_and_recall():
+    retrieval_service = FakeRetrievalService(
+        results_by_query={
+            "question": [
+                RetrievalResult(
+                    content="Relevant",
+                    source="doc1.txt",
+                    chunk_index=0,
+                    score=0.95,
+                ),
+                RetrievalResult(
+                    content="Irrelevant",
+                    source="doc2.txt",
+                    chunk_index=0,
+                    score=0.80,
+                ),
+                RetrievalResult(
+                    content="Relevant",
+                    source="doc3.txt",
+                    chunk_index=0,
+                    score=0.75,
+                ),
+            ]
+        }
     )
 
-    results = [
-        RetrievalResult(
-            content="RAG content",
-            source="rag.txt",
-            chunk_index=0,
-            score=0.95,
-        ),
-        RetrievalResult(
-            content="Embeddings content",
-            source="embeddings.txt",
-            chunk_index=0,
-            score=0.80,
-        ),
-    ]
-
-    assert evaluator.hit_at_k(case, results, k=2) == 1.0
-
-
-def test_hit_at_k_returns_zero_when_expected_source_is_not_retrieved():
-    evaluator = RetrievalEvaluator()
+    evaluator = RetrievalEvaluator(retrieval_service)
 
     case = EvaluationCase(
-        query="What is RAG?",
-        expected_sources={"rag.txt"},
+        query="question",
+        expected_sources={"doc1.txt", "doc3.txt"},
     )
 
-    results = [
-        RetrievalResult(
-            content="Java content",
-            source="java.txt",
-            chunk_index=0,
-            score=0.95,
-        ),
-        RetrievalResult(
-            content="Python content",
-            source="python.txt",
-            chunk_index=0,
-            score=0.80,
-        ),
-    ]
+    report = evaluator.evaluate([case], k=3)
 
-    assert evaluator.hit_at_k(case, results, k=2) == 0.0
+    assert report["hit_at_k"] == 1.0
+    assert report["mrr_at_k"] == 1.0
+    assert report["precision_at_k"] == 2 / 3
+    assert report["recall_at_k"] == 1.0
 
 
-def test_hit_at_k_only_considers_top_k_results():
-    evaluator = RetrievalEvaluator()
+def test_evaluator_returns_zero_metrics_without_results():
+    retrieval_service = FakeRetrievalService(
+        results_by_query={"question": []}
+    )
+
+    evaluator = RetrievalEvaluator(retrieval_service)
 
     case = EvaluationCase(
-        query="What is RAG?",
-        expected_sources={"rag.txt"},
+        query="question",
+        expected_sources={"doc1.txt"},
     )
 
-    results = [
-        RetrievalResult(
-            content="Java content",
-            source="java.txt",
-            chunk_index=0,
-            score=0.95,
-        ),
-        RetrievalResult(
-            content="Python content",
-            source="python.txt",
-            chunk_index=0,
-            score=0.80,
-        ),
-        RetrievalResult(
-            content="RAG content",
-            source="rag.txt",
-            chunk_index=0,
-            score=0.70,
-        ),
-    ]
+    report = evaluator.evaluate([case], k=5)
 
-    assert evaluator.hit_at_k(case, results, k=2) == 0.0
-    assert evaluator.hit_at_k(case, results, k=3) == 1.0
+    assert report["hit_at_k"] == 0.0
+    assert report["mrr_at_k"] == 0.0
+    assert report["precision_at_k"] == 0.0
+    assert report["recall_at_k"] == 0.0
 
 
-def test_mrr_at_k_returns_one_when_relevant_source_is_first():
-    evaluator = RetrievalEvaluator()
+def test_evaluator_only_considers_top_k_results():
+    retrieval_service = FakeRetrievalService(
+        results_by_query={
+            "question": [
+                RetrievalResult(
+                    content="Irrelevant",
+                    source="doc1.txt",
+                    chunk_index=0,
+                    score=0.95,
+                ),
+                RetrievalResult(
+                    content="Irrelevant",
+                    source="doc2.txt",
+                    chunk_index=0,
+                    score=0.90,
+                ),
+                RetrievalResult(
+                    content="Relevant",
+                    source="doc3.txt",
+                    chunk_index=0,
+                    score=0.85,
+                ),
+            ]
+        }
+    )
+
+    evaluator = RetrievalEvaluator(retrieval_service)
 
     case = EvaluationCase(
-        query="What is RAG?",
-        expected_sources={"rag.txt"},
+        query="question",
+        expected_sources={"doc3.txt"},
     )
 
-    results = [
-        RetrievalResult(
-            content="RAG content",
-            source="rag.txt",
-            chunk_index=0,
-            score=0.95,
-        ),
-        RetrievalResult(
-            content="Java content",
-            source="java.txt",
-            chunk_index=0,
-            score=0.80,
-        ),
-    ]
+    report = evaluator.evaluate([case], k=2)
 
-    assert evaluator.mrr_at_k(case, results, k=2) == 1.0
+    assert report["hit_at_k"] == 0.0
+    assert report["mrr_at_k"] == 0.0
+    assert report["precision_at_k"] == 0.0
+    assert report["recall_at_k"] == 0.0
 
 
-def test_mrr_at_k_returns_reciprocal_rank():
-    evaluator = RetrievalEvaluator()
+def test_evaluator_calculates_reciprocal_rank_when_relevant_source_is_second():
+    retrieval_service = FakeRetrievalService(
+        results_by_query={
+            "question": [
+                RetrievalResult(
+                    content="Irrelevant",
+                    source="doc1.txt",
+                    chunk_index=0,
+                    score=0.95,
+                ),
+                RetrievalResult(
+                    content="Relevant",
+                    source="doc2.txt",
+                    chunk_index=0,
+                    score=0.90,
+                ),
+            ]
+        }
+    )
+
+    evaluator = RetrievalEvaluator(retrieval_service)
 
     case = EvaluationCase(
-        query="What is RAG?",
-        expected_sources={"rag.txt"},
+        query="question",
+        expected_sources={"doc2.txt"},
     )
 
-    results = [
-        RetrievalResult(
-            content="Java content",
-            source="java.txt",
-            chunk_index=0,
-            score=0.95,
-        ),
-        RetrievalResult(
-            content="RAG content",
-            source="rag.txt",
-            chunk_index=0,
-            score=0.80,
-        ),
-    ]
+    report = evaluator.evaluate([case], k=2)
 
-    assert evaluator.mrr_at_k(case, results, k=2) == 0.5
+    assert report["hit_at_k"] == 1.0
+    assert report["mrr_at_k"] == 0.5
 
 
-def test_mrr_at_k_returns_zero_when_relevant_source_is_not_found():
-    evaluator = RetrievalEvaluator()
-
-    case = EvaluationCase(
-        query="What is RAG?",
-        expected_sources={"rag.txt"},
+def test_evaluator_averages_metrics_across_cases():
+    retrieval_service = FakeRetrievalService(
+        results_by_query={
+            "question 1": [
+                RetrievalResult(
+                    content="Relevant",
+                    source="doc1.txt",
+                    chunk_index=0,
+                    score=0.95,
+                )
+            ],
+            "question 2": [
+                RetrievalResult(
+                    content="Irrelevant",
+                    source="doc3.txt",
+                    chunk_index=0,
+                    score=0.90,
+                ),
+                RetrievalResult(
+                    content="Relevant",
+                    source="doc2.txt",
+                    chunk_index=0,
+                    score=0.85,
+                ),
+            ],
+        }
     )
 
-    results = [
-        RetrievalResult(
-            content="Java content",
-            source="java.txt",
-            chunk_index=0,
-            score=0.95,
-        ),
-    ]
-
-    assert evaluator.mrr_at_k(case, results, k=1) == 0.0
-
-
-def test_evaluate_returns_average_metrics():
-    evaluator = RetrievalEvaluator()
+    evaluator = RetrievalEvaluator(retrieval_service)
 
     cases = [
         EvaluationCase(
-            query="What is RAG?",
-            expected_sources={"rag.txt"},
+            query="question 1",
+            expected_sources={"doc1.txt"},
         ),
         EvaluationCase(
-            query="What are embeddings?",
-            expected_sources={"embeddings.txt"},
-        ),
-        EvaluationCase(
-            query="What is Java?",
-            expected_sources={"java.txt"},
+            query="question 2",
+            expected_sources={"doc2.txt"},
         ),
     ]
 
-    retrieval_results = [
-        [
-            RetrievalResult(
-                content="RAG content",
-                source="rag.txt",
-                chunk_index=0,
-                score=0.95,
-            )
-        ],
-        [
-            RetrievalResult(
-                content="Wrong content",
-                source="python.txt",
-                chunk_index=0,
-                score=0.90,
-            ),
-            RetrievalResult(
-                content="Embeddings content",
-                source="embeddings.txt",
-                chunk_index=0,
-                score=0.80,
-            ),
-        ],
-        [
-            RetrievalResult(
-                content="Java content",
-                source="java.txt",
-                chunk_index=0,
-                score=0.70,
-            )
-        ],
-    ]
+    report = evaluator.evaluate(cases, k=2)
 
-    report = evaluator.evaluate(
-        cases=cases,
-        retrieval_results=retrieval_results,
-        k=2,
+    assert report["hit_at_k"] == 1.0
+    assert report["mrr_at_k"] == (1.0 + 0.5) / 2
+    assert report["precision_at_k"] == (1.0 + 0.5) / 2
+    assert report["recall_at_k"] == 1.0
+
+
+def test_evaluator_returns_zero_metrics_for_empty_dataset():
+    retrieval_service = FakeRetrievalService(results_by_query={})
+    evaluator = RetrievalEvaluator(retrieval_service)
+
+    report = evaluator.evaluate(cases=[], k=3)
+
+    assert report["hit_at_k"] == 0.0
+    assert report["mrr_at_k"] == 0.0
+    assert report["precision_at_k"] == 0.0
+    assert report["recall_at_k"] == 0.0
+
+
+def test_evaluator_deduplicates_sources_for_precision_and_recall():
+    retrieval_service = FakeRetrievalService(
+        results_by_query={
+            "question": [
+                RetrievalResult(
+                    content="Relevant chunk 1",
+                    source="doc1.txt",
+                    chunk_index=0,
+                    score=0.95,
+                ),
+                RetrievalResult(
+                    content="Relevant chunk 2",
+                    source="doc1.txt",
+                    chunk_index=1,
+                    score=0.90,
+                ),
+                RetrievalResult(
+                    content="Irrelevant",
+                    source="doc2.txt",
+                    chunk_index=0,
+                    score=0.80,
+                ),
+            ]
+        }
     )
 
-    assert report.total_cases == 3
-    assert report.hit_at_k == 1.0
-    assert report.mrr_at_k == (1.0 + 0.5 + 1.0) / 3
+    evaluator = RetrievalEvaluator(retrieval_service)
 
-
-def test_evaluate_rejects_different_number_of_cases_and_results():
-    evaluator = RetrievalEvaluator()
-
-    cases = [
-        EvaluationCase(
-            query="What is RAG?",
-            expected_sources={"rag.txt"},
-        )
-    ]
-
-    retrieval_results = []
-
-    try:
-        evaluator.evaluate(
-            cases=cases,
-            retrieval_results=retrieval_results,
-            k=3,
-        )
-        assert False
-    except ValueError as error:
-        assert str(error) == (
-            "Cases and retrieval results must have the same length."
-        )
-
-
-def test_evaluate_returns_zero_metrics_for_empty_dataset():
-    evaluator = RetrievalEvaluator()
-
-    report = evaluator.evaluate(
-        cases=[],
-        retrieval_results=[],
-        k=3,
+    case = EvaluationCase(
+        query="question",
+        expected_sources={"doc1.txt"},
     )
 
-    assert report.total_cases == 0
-    assert report.hit_at_k == 0.0
-    assert report.mrr_at_k == 0.0
+    report = evaluator.evaluate([case], k=3)
+
+    assert report["hit_at_k"] == 1.0
+    assert report["mrr_at_k"] == 1.0
+    assert report["precision_at_k"] == 0.5
+    assert report["recall_at_k"] == 1.0

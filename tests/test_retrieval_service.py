@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from ai_research_assistant.rag.embeddings.embedding_service import EmbeddingService
 from ai_research_assistant.rag.ingestion.embedded_chunk import EmbeddedChunk
 from ai_research_assistant.rag.retrieval.retrieval_service import RetrievalService
 from ai_research_assistant.repositories.chunk_repository import ChunkRepository
@@ -7,44 +8,34 @@ from ai_research_assistant.repositories.document_repository import DocumentRepos
 
 
 class FakeEmbeddingService:
-    def generate(self, text: str) -> list[float]:
+    def generate(self, text):
         return [1.0] + [0.0] * 3071
 
 
 class FakeChunkRepository:
-    def similarity_search(
-        self,
-        query_embedding: list[float],
-        limit: int,
-    ):
-        chunks = [
+    def similarity_search(self, query_embedding, limit):
+        return [
             (
                 SimpleNamespace(
-                    content="High relevance",
+                    content="Relevant content",
                     chunk_index=0,
-                    document=SimpleNamespace(source="high.txt"),
+                    document=SimpleNamespace(
+                        source="doc1.txt",
+                    ),
                 ),
-                0.05,
+                0.10,
             ),
             (
                 SimpleNamespace(
-                    content="Medium relevance",
+                    content="Not relevant enough",
                     chunk_index=1,
-                    document=SimpleNamespace(source="medium.txt"),
+                    document=SimpleNamespace(
+                        source="doc2.txt",
+                    ),
                 ),
-                0.20,
+                0.40,
             ),
-            (
-                SimpleNamespace(
-                    content="Low relevance",
-                    chunk_index=2,
-                    document=SimpleNamespace(source="low.txt"),
-                ),
-                0.50,
-            ),
-        ]
-
-        return chunks[:limit]
+        ][:limit]
 
 
 def test_retrieval_returns_relevant_chunks(db_session):
@@ -84,15 +75,10 @@ def test_retrieval_returns_relevant_chunks(db_session):
     )
 
     assert len(results) == 1
-
-    result = results[0]
-
-    assert result.content == (
-        "RAG combines retrieval and generation."
-    )
-    assert result.source == "retrieval-test.txt"
-    assert result.chunk_index == 0
-    assert result.score > 0.99
+    assert results[0].content == "RAG combines retrieval and generation."
+    assert results[0].source == "retrieval-test.txt"
+    assert results[0].chunk_index == 0
+    assert results[0].score == 1.0
 
 
 def test_retrieval_respects_limit(db_session):
@@ -142,10 +128,38 @@ def test_retrieval_service_filters_results_below_threshold():
         limit=5,
     )
 
-    assert len(results) == 2
+    assert len(results) == 1
+    assert results[0].source == "doc1.txt"
+    assert results[0].score == 0.90
 
-    assert results[0].score == 0.95
-    assert results[1].score == 0.80
 
-    assert results[0].source == "high.txt"
-    assert results[1].source == "medium.txt"
+def test_retrieval_service_accepts_custom_similarity_threshold():
+    class CustomFakeChunkRepository:
+        def similarity_search(self, query_embedding, limit):
+            return [
+                (
+                    SimpleNamespace(
+                        content="Relevant content",
+                        chunk_index=0,
+                        document=SimpleNamespace(
+                            source="doc1.txt",
+                        ),
+                    ),
+                    0.40,
+                ),
+            ]
+
+    service = RetrievalService(
+        embedding_service=FakeEmbeddingService(),
+        chunk_repository=CustomFakeChunkRepository(),
+        similarity_threshold=0.50,
+    )
+
+    results = service.retrieve(
+        query="What is RAG?",
+        limit=5,
+    )
+
+    assert len(results) == 1
+    assert results[0].source == "doc1.txt"
+    assert results[0].score == 0.60
