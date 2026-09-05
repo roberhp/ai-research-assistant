@@ -51,28 +51,32 @@ class FakeRagService:
             ],
             citations=[],
         )
-
-def test_root():
-    response = client.get("/")
-
-    assert response.status_code == 200
-    assert response.json() == {"message": "AI Research Assistant"}
-
-
+    
+    
 def test_chat():
-    from ai_research_assistant.dependencies import get_chat_service
+    from ai_research_assistant.dependencies import get_rag_service
 
-    app.dependency_overrides[get_chat_service] = lambda: FakeChatService()
+    app.dependency_overrides[get_rag_service] = lambda: FakeRagService()
 
-    response = client.post(
-        "/chat",
-        json={"message": "What is RAG?"}
-    )
-
-    app.dependency_overrides.clear()
+    try:
+        response = client.post(
+            "/api/v1/chat",
+            json={
+                "query": "What is RAG?",
+                "limit": 5,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {"response": "Fake response to: What is RAG?"}
+
+    data = response.json()
+
+    assert "answer" in data
+    assert "sources" in data
+    assert "citations" in data
+
 
 def test_search_endpoint_returns_results():
     app.dependency_overrides[get_retrieval_service] = (
@@ -202,3 +206,9 @@ def test_liveness():
     assert response.json() == {
         "status": "ok",
     }
+
+def test_health():
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}

@@ -4,6 +4,12 @@ from ai_research_assistant.rag.embeddings.embedding_service import (
     EmbeddingService,
 )
 
+from unittest.mock import Mock
+import pytest
+from ai_research_assistant.exceptions import LLMProviderError
+from ai_research_assistant.llm.gemini_provider import GeminiProvider
+from ai_research_assistant.settings import Settings
+
 
 class FakeEmbeddingCache:
     def __init__(self):
@@ -190,3 +196,75 @@ def test_embedding_service_generates_without_cache():
     ]
 
     assert service.client.embedding_client.calls == 1
+
+def create_settings():
+    return Settings(
+        gemini_api_key="test-key",
+        gemini_model="test-model",
+        gemini_embedding_model="test-embedding-model",
+        database_url="postgresql://test",
+        database_test_url="postgresql://test",
+        redis_url="redis://localhost:6379",
+    )
+
+
+def test_generate_returns_response():
+    provider = GeminiProvider(create_settings())
+
+    response = Mock()
+    response.text = "Test response"
+
+    provider.client.models.generate_content = Mock(
+        return_value=response
+    )
+
+    result = provider.generate("Test prompt")
+
+    assert result == "Test response"
+
+    provider.client.models.generate_content.assert_called_once_with(
+        model="test-model",
+        contents="Test prompt",
+    )
+
+
+def test_generate_retries_after_failure():
+    settings = create_settings()
+
+    provider = GeminiProvider(settings)
+    provider.max_retries = 2
+    provider.retry_base_delay = 0
+
+    response = Mock()
+    response.text = "Success"
+
+    provider.client.models.generate_content = Mock(
+        side_effect=[
+            RuntimeError("temporary failure"),
+            RuntimeError("temporary failure"),
+            response,
+        ]
+    )
+
+    result = provider.generate("Test prompt")
+
+    assert result == "Success"
+
+    assert provider.client.models.generate_content.call_count == 3
+
+
+def test_generate_raises_provider_error_after_retries():
+    settings = create_settings()
+
+    provider = GeminiProvider(settings)
+    provider.max_retries = 2
+    provider.retry_base_delay = 0
+
+    provider.client.models.generate_content = Mock(
+        side_effect=RuntimeError("provider unavailable")
+    )
+
+    with pytest.raises(LLMProviderError):
+        provider.generate("Test prompt")
+
+    assert provider.client.models.generate_content.call_count == 3

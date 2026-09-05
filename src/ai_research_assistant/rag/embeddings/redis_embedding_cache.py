@@ -1,26 +1,41 @@
 import json
+import logging
 
 import redis
 
-from ai_research_assistant.rag.embeddings.embedding_cache import (
-    EmbeddingCache,
-)
+from ai_research_assistant.rag.embeddings.embedding_cache import EmbeddingCache
+
+logger = logging.getLogger(__name__)
 
 
 class RedisEmbeddingCache(EmbeddingCache):
-    def __init__(self, redis_url: str):
+    def __init__(
+        self,
+        redis_url: str,
+        connect_timeout: float = 2.0,
+        socket_timeout: float = 2.0,
+    ):
         self.client = redis.Redis.from_url(
             redis_url,
             decode_responses=True,
+            socket_connect_timeout=connect_timeout,
+            socket_timeout=socket_timeout,
         )
 
     def get(self, key: str) -> list[float] | None:
-        value = self.client.get(key)
+        try:
+            value = self.client.get(key)
 
-        if value is None:
+            if value is None:
+                return None
+
+            return json.loads(value)
+
+        except Exception:
+            logger.exception(
+                "embedding_cache_get_failed"
+            )
             return None
-
-        return json.loads(value)
 
     def set(
         self,
@@ -28,8 +43,13 @@ class RedisEmbeddingCache(EmbeddingCache):
         embedding: list[float],
         ttl: int,
     ) -> None:
-        self.client.set(
-            key,
-            json.dumps(embedding),
-            ex=ttl,
-        )
+        try:
+            self.client.set(
+                key,
+                json.dumps(embedding),
+                ex=ttl,
+            )
+        except Exception:
+            logger.exception(
+                "embedding_cache_set_failed"
+            )
